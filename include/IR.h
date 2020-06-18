@@ -68,7 +68,7 @@ class Ref {
     template<typename U, typename std::enable_if<std::is_base_of<T, U>::value>::type* = nullptr>
     Ref(std::shared_ptr<U> _ptr) : ptr(_ptr) {}
 
-    bool defined() const { return ptr != nullptr; }
+    bool defined() { return ptr != nullptr; }
 
     T *get() const { return ptr.get(); }
 
@@ -379,11 +379,6 @@ class Expr : public Ref<const ExprNode> {
     Expr(double value) :
         Ref<const ExprNode>(FloatImm::make(Type::float_scalar(64), value)) {}
 
-    Expr &operator=(const Expr &other) {
-        this->set_ptr(other.real_ptr());
-        return *this;
-    }
-
     IRNodeType node_type() const {
         return this->get()->node_type();
     }
@@ -564,14 +559,17 @@ class Binary : public ExprNode, public std::enable_shared_from_this<Binary> {
     BinaryOpType op_type;
     Expr a, b;
 
-    Binary(Type _type, BinaryOpType _op_type, Expr _a, Expr _b) : ExprNode(_type, IRNodeType::Binary),
-        op_type(_op_type), a(_a), b(_b) {}
+    bool print_bracket;
+
+    Binary(Type _type, BinaryOpType _op_type, Expr _a, Expr _b, bool _print_bracket = false) : 
+    ExprNode(_type, IRNodeType::Binary), op_type(_op_type), 
+    a(_a), b(_b), print_bracket(_print_bracket) {}
 
     Expr mutate_expr(IRMutator *mutator) const;
     void visit_node(IRVisitor *visitor) const;
 
-    static Expr make(Type t, BinaryOpType _op_type, Expr _a, Expr _b) {
-        return std::make_shared<const Binary>(t, _op_type, _a, _b);
+    static Expr make(Type t, BinaryOpType _op_type, Expr _a, Expr _b, bool _print_bracket = false) {
+        return std::make_shared<const Binary>(t, _op_type, _a, _b, _print_bracket);
     }
 
     static const IRNodeType node_type_ = IRNodeType::Binary;
@@ -747,13 +745,16 @@ class Dom : public ExprNode, public std::enable_shared_from_this<Dom> {
     Expr begin;
     Expr extent;
 
-    Dom(Type _type, Expr _begin, Expr _extent) : ExprNode(_type, IRNodeType::Dom), begin(_begin), extent(_extent) {}
+    std::string tsr;
+
+    Dom(Type _type, Expr _begin, Expr _extent, std::string _tsr) : 
+        ExprNode(_type, IRNodeType::Dom), begin(_begin), extent(_extent), tsr(_tsr) {}
 
     Expr mutate_expr(IRMutator *mutator) const;
     void visit_node(IRVisitor *visitor) const;
     
-    static Expr make(Type t, Expr _begin, Expr _extent) {
-        return std::make_shared<const Dom>(t, _begin, _extent);
+    static Expr make(Type t, Expr _begin, Expr _extent, std::string _tsr = "occc") {
+        return std::make_shared<const Dom>(t, _begin, _extent, _tsr);
     }
 
     static const IRNodeType node_type_ = IRNodeType::Dom;
