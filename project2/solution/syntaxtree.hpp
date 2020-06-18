@@ -73,7 +73,9 @@ class Operator : public Node {
 
     Operator(int i, Opt o) : Node(i, "Opt"), op(o) {}
 
-    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {}
+    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
+        return Var::make(data_type, "", {}, {});
+    }
 };
 
 class IdExpr : public Node {
@@ -180,7 +182,7 @@ class IdExpr : public Node {
 
     Expr makeExpr (bool flag, map<string, Expr> &IndexTable, Type& data_type) {
         if (right != NULL) {
-            BinaryOpType op_type = op_type = BinaryOpType::Add;;
+            BinaryOpType  op_type = BinaryOpType::Add;
             switch (op)
             {
             case ADD:
@@ -219,7 +221,9 @@ class AList : public Node {
         nodelist.insert(nodelist.begin(), node);
     }
 
-    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {}
+    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
+        return Var::make(data_type, "", {}, {});
+    }
 };
 
 class CList : public Node {
@@ -232,7 +236,9 @@ class CList : public Node {
         numlist.insert(numlist.begin(), u);
     }
 
-    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {}
+    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
+        return Var::make(data_type, "", {}, {});
+    }
 };
 
 class Tref : public Node {
@@ -322,7 +328,7 @@ class RHS : public Node {
 
     Expr makeExpr (bool flag, map<string, Expr> &IndexTable, Type& data_type) {
         if (right != NULL) {
-            BinaryOpType op_type = BinaryOpType::Add;;
+            BinaryOpType op_type = BinaryOpType::Add;
             switch (op)
             {
             case ADD:
@@ -356,10 +362,12 @@ class MoveStmt : public Node {
     public:
     Node * left;
     Node * right;
-    map<string, unsigned long> idxMap;
+    bool ifConv;
+    map<string, unsigned long> leftIdxMap;
+    map<string, unsigned long> rightIdxMap;
     map<string, Expr> IndexTable;
 
-    MoveStmt(int i, Node *l, Node *r) : Node(i,"MStmt"), left(l), right(r) { }
+    MoveStmt(int i, Node *l, Node *r) : Node(i,"MStmt"), left(l), right(r), ifConv(false) { }
 
      ~MoveStmt() {
         if (left != NULL) delete left;
@@ -370,17 +378,25 @@ class MoveStmt : public Node {
 
     void checkRange(map<string, vector<unsigned long> > &TrefTable) {
         //cout << "checking MoveStmt " << nid << endl;
-        ((Tref*)left) -> checkRange(idxMap, TrefTable);
-        ((RHS*)right) -> checkRange(idxMap, TrefTable);
-        for (map<string, unsigned long>::iterator it = idxMap.begin(); it != idxMap.end(); it++) {
+        ((Tref*)left) -> checkRange(leftIdxMap, TrefTable);
+        ((RHS*)right) -> checkRange(rightIdxMap, TrefTable);
+        for (map<string, unsigned long>::iterator it = leftIdxMap.begin(); it != leftIdxMap.end(); it++) {
             Expr tmp_dom = Dom::make(Type::int_scalar(32), 0, (int)(it -> second), it -> first);
             Expr tmp = Index::make(Type::int_scalar(32), it -> first, tmp_dom, IndexType::Spatial);
             IndexTable.insert(pair<string, Expr>(it->first, tmp));
         }
+        for (map<string, unsigned long>::iterator it = rightIdxMap.begin(); it != rightIdxMap.end(); it++) {
+            if (leftIdxMap.find(it->first) == leftIdxMap.end()) {
+                ifConv = true;
+                Expr tmp_dom = Dom::make(Type::int_scalar(32), 0, (int)(it -> second), it -> first);
+                Expr tmp = Index::make(Type::int_scalar(32), it -> first, tmp_dom, IndexType::Spatial);
+                IndexTable.insert(pair<string, Expr>(it->first, tmp));
+            }
+        }
     }
 
     Stmt makeStmt(Type& data_type) {
-        Stmt movestmt = Move::make(left->makeExpr(false, IndexTable, data_type), right->makeExpr(false, IndexTable, data_type), MoveType::MemToMem);
+        Stmt movestmt = Move::make(left->makeExpr(false, IndexTable, data_type), right->makeExpr(false, IndexTable, data_type), ifConv?MoveType::MemToShared:MoveType::MemToMem);
         vector<Expr> indexs;
         for (map<string, Expr> :: iterator it = IndexTable.begin(); it != IndexTable.end(); it++) {
             indexs.push_back(it->second);
@@ -388,7 +404,9 @@ class MoveStmt : public Node {
         return LoopNest::make(indexs, {movestmt});
     }
 
-    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {}
+    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
+        return Var::make(data_type, "", {}, {});
+    }
 };
 
 class Function : public Node {
@@ -411,7 +429,7 @@ class Function : public Node {
     }
 
     void insertStmt(Node* stmt) {
-        stmtNodes.push_back(stmt);
+        stmtNodes.insert(stmtNodes.begin(), stmt);
     }
 
     Group makeGroup() {
@@ -438,7 +456,9 @@ class Function : public Node {
         return Kernel::make(name, input, output, stmts, KernelType::CPU);
     }
 
-    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {}
+    Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
+        return Var::make(data_type, "", {}, {});
+    }
 };
 /*
 class Unit : public Node {
