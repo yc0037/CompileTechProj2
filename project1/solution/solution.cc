@@ -1,24 +1,13 @@
 #include <fstream>
 #include <json.hpp>
 #include <dirent.h>
-#include <map>
-#include <vector>
-#include <stdio.h>
 #include "parser.tab.h"
 #include "syntaxtree.hpp"
-
 
 using json = nlohmann::json;
 
 extern Function * mainFunc;
 extern int id;
-
-// EDITED
-typedef std::map<std::string, Tref*> dTrefMap;
-dTrefMap dTrefs;
-std::string curLeft;
-std::string curGrad;
-std::vector<std::string> sgradto;
 
 int main()
 {
@@ -29,10 +18,8 @@ int main()
     string filename;
     while ((dirp = readdir(dir)) != NULL)
     {
-        dTrefs.clear();
         filename = dirp->d_name;
         if (dirp->d_type != DT_REG) continue;
-
         ifstream ifile(casespath + '/' + filename);
         if (! ifile.is_open()) continue;
         
@@ -45,15 +32,12 @@ int main()
         ir["ins"].get_to(ins);
         std::vector<std::string> outs;
         ir["outs"].get_to(outs);
-        curLeft = outs[0];
         std::string sdata_type;
         ir["data_type"].get_to(sdata_type);
         Type data_type = Type::float_scalar(32);
         if (sdata_type == "int") data_type = Type::int_scalar(32);
         std::string skernel;
         ir["kernel"].get_to(skernel);
-        sgradto.clear();
-        ir["grad_to"].get_to(sgradto);
 
         FILE* tmp = fopen("tmp", "w");
         fwrite(skernel.data(), sizeof(char), skernel.size(), tmp);

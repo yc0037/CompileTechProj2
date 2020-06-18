@@ -23,14 +23,6 @@ struct Cond
 };
 */
 
-// EDITED
-class Tref;
-typedef std::map<std::string, Tref*> dTrefMap;
-extern dTrefMap dTrefs;
-extern std::string curLeft;
-extern std::string curGrad;
-extern std::vector<std::string> sgradto;
-
 
 class Node {
     public:
@@ -60,8 +52,7 @@ class Float : public Node {
     Float(int i, string fv) :  Node(i, "Float"), fvalue(fv) {}
 
     Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
-        // EDITED
-        return StringImm::make(data_type, "0.0");
+        return StringImm::make(data_type, fvalue);
     }
 };
 
@@ -279,39 +270,15 @@ class Tref : public Node {
         for (unsigned i = 0; i < l; i++) {
             ((IdExpr*) idExprs[i]) -> checkRange(ranges[i], idxMap);
         }
-
-        // EDITED
-        dTrefMap::iterator dit = dTrefs.find(name);
-        if (dit == dTrefs.end()) {
-            Tref* dCur = new Tref(-1, "d" + name);
-            dCur->ranges = this->ranges;
-            dCur->idExprs = this->idExprs;
-            dTrefs.insert(pair<string, Tref*>(name, dCur));
-        }
     }
 
     Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {
-        // EDITED
-        Tref* retTref;
-        if (this->name == curLeft) {
-            retTref = dTrefs.find(curGrad)->second;
-        } else if (this->name == curGrad) {
-            retTref = dTrefs.find(curLeft)->second;
-        } else {
-            retTref = this;
-        }
         vector<Expr> exprs;
-        unsigned long l = retTref->idExprs.size();
+        unsigned long l = idExprs.size();
         for (unsigned i = 0; i < l; i++) {
-            exprs.push_back(retTref->idExprs[i] -> makeExpr(false, IndexTable, data_type));
+            exprs.push_back(idExprs[i] -> makeExpr(false, IndexTable, data_type));
         }
-        return Var::make(data_type, retTref->name, exprs, retTref->ranges);
-        // vector<Expr> exprs;
-        // unsigned long l = idExprs.size();
-        // for (unsigned i = 0; i < l; i++) {
-        //     exprs.push_back(idExprs[i] -> makeExpr(false, IndexTable, data_type));
-        // }
-        // return Var::make(data_type, name, exprs, ranges);
+        return Var::make(data_type, name, exprs, ranges);
     }
 };
 
@@ -359,26 +326,8 @@ class RHS : public Node {
             switch (op)
             {
             case ADD:
-                // if (left -> type == "Integer") {
-                //     ((Integer*) left) -> value = 0;
-                // } else if (right -> type == "Integer") {
-                //     ((Integer*) right) -> value = 0;
-                // } else if (left -> type == "Float") {
-                //     ((Float*) left) -> fvalue = "0.0";
-                // } else if (right -> type == "Float") {
-                //     ((Float*) right) -> fvalue = "0.0";
-                // }
                 break;
             case SUB:
-                // if (left -> type == "Integer") {
-                //     ((Integer*) left) -> value = 0;
-                // } else if (right -> type == "Integer") {
-                //     ((Integer*) right) -> value = 0;
-                // } else if (left -> type == "Float") {
-                //     ((Float*) left) -> fvalue = "0.0";
-                // } else if (right -> type == "Float") {
-                //     ((Float*) right) -> fvalue = "0.0";
-                // }
                 op_type = BinaryOpType::Sub;
                 break;
             case MUL:
@@ -431,20 +380,12 @@ class MoveStmt : public Node {
     }
 
     Stmt makeStmt(Type& data_type) {
-        // EDITED
-        vector<Stmt> movestmts;
-        for (std::string grad_to : sgradto) {
-            curGrad = grad_to;
-            Stmt movestmt = Move::make(left->makeExpr(false, IndexTable, data_type), right->makeExpr(false, IndexTable, data_type), MoveType::MemToMem);
-            movestmts.push_back(movestmt);
-        }
-
-        // Stmt movestmt = Move::make(left->makeExpr(false, IndexTable, data_type), right->makeExpr(false, IndexTable, data_type), MoveType::MemToMem);
+        Stmt movestmt = Move::make(left->makeExpr(false, IndexTable, data_type), right->makeExpr(false, IndexTable, data_type), MoveType::MemToMem);
         vector<Expr> indexs;
         for (map<string, Expr> :: iterator it = IndexTable.begin(); it != IndexTable.end(); it++) {
             indexs.push_back(it->second);
         }
-        return LoopNest::make(indexs, movestmts);
+        return LoopNest::make(indexs, {movestmt});
     }
 
     Expr makeExpr(bool flag, map<string, Expr> &IndexTable, Type& data_type) {}
@@ -477,53 +418,22 @@ class Function : public Node {
         vector<Stmt> stmts;
         vector<Expr> input;
         vector<Expr> output;
-
-        // EDITED
-        vector<std::string> inputSet;
-
         for (unsigned i = 0; i < stmtNodes.size(); i++) {
             ((MoveStmt *) stmtNodes[i]) -> checkRange(TrefTable);
             //cout << "checked" << endl;
             stmts.push_back(((MoveStmt *) stmtNodes[i]) -> makeStmt(data_type));
         }
         for (unsigned j = 0; j < outs.size(); j++) {
-            // EDITED
             string tmpName = outs[j];
-            if(tmpName == curLeft && find(inputSet.begin(), inputSet.end(), tmpName) == inputSet.end()) {
-                inputSet.push_back("d" + tmpName);
-            }
-
-            // string tmpName = outs[j];
-            // Expr tref = Var::make(data_type, tmpName, {}, TrefTable[tmpName]);
-            // output.push_back(tref);
+            Expr tref = Var::make(data_type, tmpName, {}, TrefTable[tmpName]);
+            output.push_back(tref);
         }
         for (unsigned k = 0; k < ins.size(); k++) {
-            // EDITED
             string tmpName = ins[k];
             if (find(outs.begin(), outs.end(), tmpName) == outs.end()) {
-                if(find(sgradto.begin(), sgradto.end(), tmpName) != sgradto.end()){
-                    Expr tref = Var::make(data_type, "d" + tmpName, {}, TrefTable[tmpName]);
-                    output.push_back(tref);
-                    for (std::string iin : ins) {
-                        if(iin == tmpName || find(inputSet.begin(), inputSet.end(), iin) != inputSet.end()) continue;
-                        inputSet.push_back(iin);
-                    }
-                }
+                Expr tref = Var::make(data_type, tmpName, {}, TrefTable[tmpName]);
+                input.push_back(tref);
             }
-
-            // string tmpName = ins[k];
-            // if (find(outs.begin(), outs.end(), tmpName) == outs.end()) {
-            //     Expr tref = Var::make(data_type, tmpName, {}, TrefTable[tmpName]);
-            //     input.push_back(tref);
-            // }
-        }
-        sort(inputSet.begin(), inputSet.end());
-        for (int i = 0; i < inputSet.size(); ++i) {
-            std::string TrefName = inputSet[i];
-            if(TrefName[0] == 'd')
-                TrefName = TrefName.substr(1);
-            Expr tref = Var::make(data_type, inputSet[i], {}, TrefTable[TrefName]);
-            input.push_back(tref);
         }
         return Kernel::make(name, input, output, stmts, KernelType::CPU);
     }
