@@ -311,7 +311,9 @@ void IRPrinter::visit(Ref<const Move> op) {
     print_indent();
     (op->dst).visit_expr(this);
     // oss << " =<";
-    oss << " = ";
+   if (op->move_type == MoveType::MemToMem)  oss << " = ";
+   else if (op->move_type == MoveType::MemToShared) oss << " += ";
+
     // if (op->move_type == MoveType::HostToDevice) {
     //     oss << "host_to_device";
     // } else if (op->move_type == MoveType::MemToShared) {

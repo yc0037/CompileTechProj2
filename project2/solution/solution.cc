@@ -35,6 +35,7 @@ int main()
 
         ifstream ifile(casespath + '/' + filename);
         if (! ifile.is_open()) continue;
+        // printf("%s:\n", filename.c_str());
         
         json ir;
         ifile >> ir;
@@ -65,6 +66,7 @@ int main()
         mainFunc = new Function(id++, sname, data_type, ins, outs);
 
         yyparse();
+        // printf("Parsed!\n");
         
         Group kernel = mainFunc -> makeGroup();
 
